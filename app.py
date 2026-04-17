@@ -7,7 +7,7 @@ import io
 import os
 
 # --- 1. ตั้งค่าหน้าจอและระบบความปลอดภัย ---
-st.set_page_config(page_title="AI Sales Summary Pro", layout="wide")
+st.set_page_config(page_title="Sales Summary", layout="wide")
 
 def check_password():
     if "password_correct" not in st.session_state:
@@ -62,7 +62,7 @@ def extract_html_data(uploaded_file):
     return pd.DataFrame(rows_data)
 
 # --- 4. ส่วนแสดงผลหลัก ---
-st.title("📊 ระบบ AI สรุปยอดขายรายไฟล์ (Version 5.0)")
+st.title("📊 ระบบ สรุปยอดขายรายไฟล์ (Version 5.0)")
 st.write(f"ฐานข้อมูลเมนูปัจจุบันมี: {len(keywords)} รายการ")
 
 if st.sidebar.button("🔄 รีเฟรชข้อมูลจาก Google Sheets"):
