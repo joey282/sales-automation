@@ -92,6 +92,13 @@ if uploaded_files:
             
             df_sales['Category'] = matched_categories
             all_processed_data.append(df_sales)
+
+     # แสดงผลรายงานรายไฟล์บนหน้าจอ
+            with st.expander(f"📄 รายงานสรุป: {os.path.splitext(uploaded_file.name)[0]}"):
+                file_sum = df_sales.groupby('Category')['Quantity'].sum().reset_index()
+                st.bar_chart(file_sum.set_index('Category'))
+                st.dataframe(file_sum, use_container_width=True)
+                
     if all_processed_data:
         final_df = pd.concat(all_processed_data, ignore_index=True)
         pivot_table = final_df.pivot_table(
