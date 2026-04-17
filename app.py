@@ -29,7 +29,7 @@ if not check_password():
 
 # --- 2. เชื่อมต่อ Google Sheets (ฐานข้อมูลหลัก) ---
 # ระบุ URL ของ Google Sheets ของคุณที่นี่
-SHEET_URL = "https://docs.google.com/spreadsheets/d/XXXXXXXXXXXX/edit?usp=sharing"
+SHEET_URL = "https://docs.google.com/spreadsheets/d/1cM7lKy8jq3wcjvBz3fH1tAmR9jjKZ2QDwETPDeDdlME/edit?usp=sharing"
 
 try:
     conn = st.connection("gsheets", type=GSheetsConnection)
