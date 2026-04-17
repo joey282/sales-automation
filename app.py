@@ -73,23 +73,30 @@ if uploaded_files:
     all_processed_data = []
     all_unmatched = []
 
+   if uploaded_files:
+    all_processed_data = []
+    all_unmatched = []
+
+    # วนลูปประมวลผลทีละไฟล์
     for uploaded_file in uploaded_files:
         df_sales = extract_html_data(uploaded_file)
+        
         if not df_sales.empty:
             matched_categories = []
             for menu in df_sales['Menu Name']:
-                # ใช้ข้อมูลจาก Google Sheets ในการ Match
+                # Fuzzy Matching ค้นหาตัวที่ใกล้เคียงที่สุด
                 match, score = process.extractOne(menu, keywords, scorer=fuzz.token_sort_ratio)
+                
                 if score >= 60:
                     cat = df_mapping[df_mapping.iloc[:, 0] == match].iloc[0, 1]
                     matched_categories.append(cat)
                 else:
                     matched_categories.append("Unknown")
-                    if menu not in all_unmatched: all_unmatched.append(menu)
+                    if menu not in all_unmatched:
+                        all_unmatched.append(menu)
             
             df_sales['Category'] = matched_categories
             all_processed_data.append(df_sales)
-
     if all_processed_data:
         final_df = pd.concat(all_processed_data, ignore_index=True)
         pivot_table = final_df.pivot_table(
