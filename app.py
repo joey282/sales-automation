@@ -60,7 +60,7 @@ def extract_html_data(uploaded_file):
     return pd.DataFrame(rows_data)
 
 # --- หน้าจอหลัก ---
-st.title("📊 ระบบสรุปยอดขาย (Sync with Google Sheets)")
+st.title("📊 ระบบสรุปยอดขาย")
 
 # ปุ่มกด Refresh ข้อมูลจาก Google Sheets
 if st.sidebar.button("🔄 อัปเดตข้อมูลเมนูใหม่"):
@@ -123,3 +123,10 @@ if uploaded_files:
             with st.expander("⚠️ รายการเมนูที่ไม่พบในฐานข้อมูล"):
                 st.write("กรุณาเพิ่มรายการเหล่านี้ใน Google Sheets:")
                 for item in all_unmatched: st.write(f"- {item}")
+                    
+        # แจ้งเตือนรายการที่ไม่รู้จัก
+        if all_unmatched:
+            st.warning("⚠️ รายการเมนูที่ไม่พบใน Dataset")
+            st.write(", ".join(all_unmatched))
+else:
+    st.info("กรุณาอัปโหลดไฟล์ HTML เพื่อเริ่มต้นการประมวลผล")
