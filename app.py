@@ -99,12 +99,25 @@ if uploaded_files:
                 # ตารางสรุปประเภทของไฟล์นี้
                 st.subheader("สรุปแยกตามประเภท")
                 file_summary = df_sales.groupby('Category')['Quantity'].sum().reset_index()
-                
+
                 # เพิ่มแถว Total ท้ายตารางสรุปรายไฟล์
                 total_qty = file_summary['Quantity'].sum()
                 sum_total_row = pd.DataFrame([['ยอดรวมทั้งหมด (Total)', total_qty]], columns=['Category', 'Quantity'])
                 file_summary_with_total = pd.concat([file_summary, sum_total_row], ignore_index=True)
                 st.table(file_summary_with_total)
+
+                # --- ตารางเช็ทเมนู (เมนูที่มี " + " ในชื่อ) ---
+                st.subheader("🍱 รายการเช็ทเมนู")
+                df_set_menu = df_sales[df_sales['Menu Name'].str.contains(r'\+', na=False)]
+                if not df_set_menu.empty:
+                    set_menu_summary = df_set_menu.groupby('Menu Name')['Quantity'].sum().reset_index()
+                    set_menu_summary = set_menu_summary.sort_values('Quantity', ascending=False).reset_index(drop=True)
+                    set_total = set_menu_summary['Quantity'].sum()
+                    set_total_row = pd.DataFrame([['ยอดรวมเช็ทเมนู (Total)', set_total]], columns=['Menu Name', 'Quantity'])
+                    set_menu_display = pd.concat([set_menu_summary, set_total_row], ignore_index=True)
+                    st.dataframe(set_menu_display, use_container_width=True)
+                else:
+                    st.info("ไม่พบเช็ทเมนูในไฟล์นี้")
 
                 # ตารางข้อมูลดิบ (ชื่อเมนู + ประเภท)
                 st.subheader("รายการขายทั้งหมด")
@@ -140,10 +153,50 @@ if uploaded_files:
         st.header("📊 ตารางสรุปเปรียบเทียบทุกไฟล์")
         st.dataframe(pivot_table_final, use_container_width=True)
 
+        # --- เตรียมข้อมูลเช็ทเมนูแยกตามสาขา ---
+        df_set_menu_all = final_df[final_df['Menu Name'].str.contains(r'\+', na=False)]
+        if not df_set_menu_all.empty:
+            set_menu_pivot = df_set_menu_all.pivot_table(
+                index='Menu Name',
+                columns='Source File',
+                values='Quantity',
+                aggfunc='sum',
+                fill_value=0
+            ).reset_index()
+            set_menu_pivot['ยอดรวมทุกสาขา'] = set_menu_pivot.iloc[:, 1:].sum(axis=1)
+            set_menu_pivot = set_menu_pivot.sort_values('ยอดรวมทุกสาขา', ascending=False).reset_index(drop=True)
+
+            set_total_values = ['ยอดรวมทั้งหมด (Total)']
+            for col in set_menu_pivot.columns[1:]:
+                set_total_values.append(set_menu_pivot[col].sum())
+            set_menu_pivot_final = pd.concat(
+                [set_menu_pivot, pd.DataFrame([set_total_values], columns=set_menu_pivot.columns)],
+                ignore_index=True
+            )
+        else:
+            set_menu_pivot_final = pd.DataFrame([['ไม่พบเช็ทเมนู']], columns=['Menu Name'])
+
+        # --- เตรียมข้อมูล Top 10 ขายดีที่สุดของแต่ละสาขา ---
+        top10_frames = []
+        for source_file in final_df['Source File'].unique():
+            df_branch = final_df[final_df['Source File'] == source_file]
+            top10 = df_branch.groupby('Menu Name')['Quantity'].sum().reset_index()
+            top10 = top10.sort_values('Quantity', ascending=False).head(10).reset_index(drop=True)
+            top10.insert(0, 'อันดับ', range(1, len(top10) + 1))
+            top10.insert(1, 'สาขา', source_file)
+            top10_frames.append(top10)
+
+        if top10_frames:
+            top10_all = pd.concat(top10_frames, ignore_index=True)
+        else:
+            top10_all = pd.DataFrame(columns=['อันดับ', 'สาขา', 'Menu Name', 'Quantity'])
+
         # ปุ่มดาวน์โหลด Excel
         buffer = io.BytesIO()
         with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
             pivot_table_final.to_excel(writer, index=False, sheet_name='Summary_Report')
+            set_menu_pivot_final.to_excel(writer, index=False, sheet_name='Set_Menu_By_Branch')
+            top10_all.to_excel(writer, index=False, sheet_name='Top10_By_Branch')
         
         st.download_button(
             label="📥 ดาวน์โหลดไฟล์สรุปรายงาน (Excel)",
