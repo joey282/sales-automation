@@ -153,50 +153,90 @@ if uploaded_files:
         st.header("📊 ตารางสรุปเปรียบเทียบทุกไฟล์")
         st.dataframe(pivot_table_final, use_container_width=True)
 
-        # --- เตรียมข้อมูลเช็ทเมนูแยกตามสาขา ---
-        df_set_menu_all = final_df[final_df['Menu Name'].str.contains(r'\+', na=False)]
-        if not df_set_menu_all.empty:
-            set_menu_pivot = df_set_menu_all.pivot_table(
-                index='Menu Name',
-                columns='Source File',
-                values='Quantity',
-                aggfunc='sum',
-                fill_value=0
-            ).reset_index()
-            set_menu_pivot['ยอดรวมทุกสาขา'] = set_menu_pivot.iloc[:, 1:].sum(axis=1)
-            set_menu_pivot = set_menu_pivot.sort_values('ยอดรวมทุกสาขา', ascending=False).reset_index(drop=True)
+        # --- เตรียมข้อมูลแยกตามสาขา (สำหรับชีท Set Menu และ Top 10) ---
+        branches = list(final_df['Source File'].unique())
 
-            set_total_values = ['ยอดรวมทั้งหมด (Total)']
-            for col in set_menu_pivot.columns[1:]:
-                set_total_values.append(set_menu_pivot[col].sum())
-            set_menu_pivot_final = pd.concat(
-                [set_menu_pivot, pd.DataFrame([set_total_values], columns=set_menu_pivot.columns)],
-                ignore_index=True
-            )
-        else:
-            set_menu_pivot_final = pd.DataFrame([['ไม่พบเช็ทเมนู']], columns=['Menu Name'])
+        set_menu_per_branch = {}
+        top10_per_branch = {}
+        for branch in branches:
+            df_branch = final_df[final_df['Source File'] == branch]
 
-        # --- เตรียมข้อมูล Top 10 ขายดีที่สุดของแต่ละสาขา ---
-        top10_frames = []
-        for source_file in final_df['Source File'].unique():
-            df_branch = final_df[final_df['Source File'] == source_file]
-            top10 = df_branch.groupby('Menu Name')['Quantity'].sum().reset_index()
+            df_set = df_branch[df_branch['Menu Name'].str.contains(r'\+', na=False)]
+            set_summary = df_set.groupby('Menu Name')['Quantity'].sum().reset_index()
+            set_summary = set_summary.sort_values('Quantity', ascending=False).reset_index(drop=True)
+            set_summary.insert(0, 'ອັນດັບ', range(1, len(set_summary) + 1))
+            set_menu_per_branch[branch] = set_summary
+
+            df_branch_filtered = df_branch[
+                df_branch['Category'].astype(str).str.strip().str.lower().isin(['iced', 'hot', 'smt'])
+            ]
+            top10 = df_branch_filtered.groupby('Menu Name')['Quantity'].sum().reset_index()
             top10 = top10.sort_values('Quantity', ascending=False).head(10).reset_index(drop=True)
-            top10.insert(0, 'อันดับ', range(1, len(top10) + 1))
-            top10.insert(1, 'สาขา', source_file)
-            top10_frames.append(top10)
+            top10.insert(0, 'ອັນດັບ', range(1, len(top10) + 1))
+            top10_per_branch[branch] = top10
 
-        if top10_frames:
-            top10_all = pd.concat(top10_frames, ignore_index=True)
-        else:
-            top10_all = pd.DataFrame(columns=['อันดับ', 'สาขา', 'Menu Name', 'Quantity'])
+        def write_branch_horizontal(ws, branch_data_dict, branches_list):
+            """เขียนข้อมูลแบบเรียงข้างกัน: แต่ละสาขาใช้ 3 คอลัมน์ (ອັນດັບ, Menu Name, Quantity)"""
+            from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+            from openpyxl.utils import get_column_letter
+
+            title_font = Font(bold=True, size=12)
+            header_font = Font(bold=True)
+            header_fill = PatternFill(start_color="D9E1F2", end_color="D9E1F2", fill_type="solid")
+            center = Alignment(horizontal="center", vertical="center")
+            thin = Side(border_style="thin", color="000000")
+            border = Border(left=thin, right=thin, top=thin, bottom=thin)
+
+            for idx, branch in enumerate(branches_list):
+                start_col = idx * 3 + 1
+                df = branch_data_dict[branch]
+
+                # Row 1: ชื่อสาขา (merge 3 คอลัมน์)
+                ws.cell(row=1, column=start_col, value=branch)
+                ws.merge_cells(start_row=1, start_column=start_col, end_row=1, end_column=start_col + 2)
+                title_cell = ws.cell(row=1, column=start_col)
+                title_cell.font = title_font
+                title_cell.alignment = center
+
+                # Row 2: หัวคอลัมน์
+                headers = ['ອັນດັບ', 'Menu Name', 'Quantity']
+                for j, h in enumerate(headers):
+                    c = ws.cell(row=2, column=start_col + j, value=h)
+                    c.font = header_font
+                    c.fill = header_fill
+                    c.alignment = center
+                    c.border = border
+
+                # Rows 3+: ข้อมูล
+                for r_idx, row in df.iterrows():
+                    for j, key in enumerate(['ອັນດັບ', 'Menu Name', 'Quantity']):
+                        c = ws.cell(row=3 + r_idx, column=start_col + j, value=row[key])
+                        c.border = border
+                        if key in ('ອັນດັບ', 'Quantity'):
+                            c.alignment = center
+
+                # ปรับความกว้างคอลัมน์
+                ws.column_dimensions[get_column_letter(start_col)].width = 8
+                ws.column_dimensions[get_column_letter(start_col + 1)].width = 32
+                ws.column_dimensions[get_column_letter(start_col + 2)].width = 12
 
         # ปุ่มดาวน์โหลด Excel
         buffer = io.BytesIO()
         with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
             pivot_table_final.to_excel(writer, index=False, sheet_name='Summary_Report')
-            set_menu_pivot_final.to_excel(writer, index=False, sheet_name='Set_Menu_By_Branch')
-            top10_all.to_excel(writer, index=False, sheet_name='Top10_By_Branch')
+
+            wb = writer.book
+
+            # ชีท Set_Menu_By_Branch
+            ws_set = wb.create_sheet('Set_Menu_By_Branch')
+            if any(not df.empty for df in set_menu_per_branch.values()):
+                write_branch_horizontal(ws_set, set_menu_per_branch, branches)
+            else:
+                ws_set.cell(row=1, column=1, value='ไม่พบเช็ทเมนู')
+
+            # ชีท Top10_By_Branch
+            ws_top = wb.create_sheet('Top10_By_Branch')
+            write_branch_horizontal(ws_top, top10_per_branch, branches)
         
         st.download_button(
             label="📥 ดาวน์โหลดไฟล์สรุปรายงาน (Excel)",
